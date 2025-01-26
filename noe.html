@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>escape from balls</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+
+        canvas {
+            border: 2px solid white;
+        }
+
+        #game-over {
+            color: white;
+            font-size: 30px;
+            text-align: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        #start-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: #444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #start-btn:hover {
+            background-color: #666;
+        }
+
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="game-over">Game Over! Press 'R' to Restart</div>
+<button id="start-btn">Start Game</button>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startButton = document.getElementById('start-btn');
+    const gameOverMessage = document.getElementById('game-over');
+
+    // Ball settings
+    const ball1Radius = 20;
+    const incomingBallRadius = 15;
+    const bonusBallRadius = 10;
+    let ball1Pos = { x: canvas.width / 2, y: canvas.height / 2 };
+    let ball1Speed = 5;
+    let incomingBalls = [];
+    let bonusBalls = [];
+    let ballSpeedIncrement = 0.1;
+
+    // Game state
+    let gameActive = false;
+    let score = 0;
+    let incomingBallSpeed = 3; // Starting speed of incoming balls
+
+    // Game loop settings
+    const keys = { up: false, down: false, left: false, right: false };
+
+    // Listen for key events
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true;
+        if (e.key === 'ArrowDown' || e.key === 's') keys.down = true;
+        if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+        if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowUp' || e.key === 'w') keys.up = false;
+        if (e.key === 'ArrowDown' || e.key === 's') keys.down = false;
+        if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+    });
+
+    // Create incoming ball
+    function createIncomingBall() {
+        const side = ['top', 'bottom', 'left', 'right'][Math.floor(Math.random() * 4)];
+        let ball = { x: 0, y: 0, dx: 0, dy: 0 };
+
+        if (side === 'top') {
+            ball.x = Math.random() * canvas.width;
+            ball.y = -incomingBallRadius;
+            ball.dx = 0;
+            ball.dy = incomingBallSpeed;
+        } else if (side === 'bottom') {
+            ball.x = Math.random() * canvas.width;
+            ball.y = canvas.height + incomingBallRadius;
+            ball.dx = 0;
+            ball.dy = -incomingBallSpeed;
+        } else if (side === 'left') {
+            ball.x = -incomingBallRadius;
+            ball.y = Math.random() * canvas.height;
+            ball.dx = incomingBallSpeed;
+            ball.dy = 0;
+        } else if (side === 'right') {
+            ball.x = canvas.width + incomingBallRadius;
+            ball.y = Math.random() * canvas.height;
+            ball.dx = -incomingBallSpeed;
+            ball.dy = 0;
+        }
+
+        return ball;
+    }
+
+    // Create bonus green ball
+    function createBonusBall() {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        return { x, y };
+    }
+
+    // Game Over function
+    function gameOver() {
+        gameActive = false;
+        gameOverMessage.style.display = 'block';
+    }
+
+    // Restart game
+    function restartGame() {
+        gameActive = true;
+        gameOverMessage.style.display = 'none';
+        ball1Pos = { x: canvas.width / 2, y: canvas.height / 2 };
+        incomingBalls = [];
+        bonusBalls = [];
+        score = 0;
+        incomingBallSpeed = 3; // Reset speed of incoming balls
+        startButton.style.display = 'none'; // Hide the start button when the game starts
+        gameLoop(); // Start the game loop
+    }
+
+    // Draw Ball1 (player's ball)
+    function drawBall1() {
+        ctx.beginPath();
+        ctx.arc(ball1Pos.x, ball1Pos.y, ball1Radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'blue';
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    // Draw Incoming Balls
+    function drawIncomingBalls() {
+        for (let ball of incomingBalls) {
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, incomingBallRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            ctx.closePath();
+
+            // Move the ball
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Collision detection
+            if (Math.abs(ball1Pos.x - ball.x) < ball1Radius + incomingBallRadius &&
+                Math.abs(ball1Pos.y - ball.y) < ball1Radius + incomingBallRadius) {
+                gameOver();
+            }
+        }
+    }
+
+    // Draw Bonus Balls (green balls)
+    function drawBonusBalls() {
+        for (let ball of bonusBalls) {
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, bonusBallRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'green';
+            ctx.fill();
+            ctx.closePath();
+
+            // Collision detection with Ball1
+            if (Math.abs(ball1Pos.x - ball.x) < ball1Radius + bonusBallRadius &&
+                Math.abs(ball1Pos.y - ball.y) < ball1Radius + bonusBallRadius) {
+                score += 10; // Increase score when catching bonus ball
+                bonusBalls.splice(bonusBalls.indexOf(ball), 1); // Remove the bonus ball
+            }
+        }
+    }
+
+    // Update Ball1 position based on user input
+    function updateBall1() {
+        if (keys.up && ball1Pos.y - ball1Radius > 0) ball1Pos.y -= ball1Speed;
+        if (keys.down && ball1Pos.y + ball1Radius < canvas.height) ball1Pos.y += ball1Speed;
+        if (keys.left && ball1Pos.x - ball1Radius > 0) ball1Pos.x -= ball1Speed;
+        if (keys.right && ball1Pos.x + ball1Radius < canvas.width) ball1Pos.x += ball1Speed;
+    }
+
+    // Draw score
+    function drawScore() {
+        ctx.font = '20px Arial';
+        ctx.fillStyle = 'white';
+        ctx.fillText('Score: ' + score, 10, 30);
+    }
+
+    // Main game loop
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (gameActive) {
+            // Update player and draw
+            updateBall1();
+            drawBall1();
+
+            // Create new incoming balls periodically
+            if (Math.random() < 0.02) {
+                incomingBalls.push(createIncomingBall());
+            }
+
+            // Create new bonus balls periodically
+            if (Math.random() < 0.01) {
+                bonusBalls.push(createBonusBall());
+            }
+
+            // Draw and move incoming balls
+            drawIncomingBalls();
+
+            // Draw bonus balls
+            drawBonusBalls();
+
+            // Draw score
+            drawScore();
+
+            // Increment score over time
+            score++;
+
+            // Increase difficulty by speeding up the incoming balls
+            if (score % 100 === 0) {
+                incomingBallSpeed += ballSpeedIncrement;
+            }
+
+            // Call the game loop again
+            requestAnimationFrame(gameLoop);
+        }
+    }
+
+    // Start game when "Start" button is clicked
+    startButton.addEventListener('click', () => {
+        gameActive = true;
+        startButton.style.display = 'none'; // Hide start button
+        gameLoop(); // Start the game loop
+    });
+
+    // Restart game on 'R' key press after game over
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'r' || e.key === 'R') {
+            restartGame();
+        }
+    });
+</script>
+
+</body>
+</html>
